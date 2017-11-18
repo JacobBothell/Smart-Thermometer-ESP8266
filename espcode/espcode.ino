@@ -13,9 +13,9 @@
 #include "DHT.h"
 
 //these are for the realy board that controls HVAC unit
-#define RELAY_1 14
-#define RELAY_2 12
-#define RELAY_3 13
+#define HEAT 14
+#define COOL 12
+#define FAN 13
 #define RELAY_4 15
 
 //digital pin for dht11
@@ -25,45 +25,111 @@
 // Initialize DHT sensor.
 DHT dht(DHTPIN, DHTTYPE);
 
+//related to the DHT11 sensor
+float Humidity = 0;
+float Temperature = 0;
+bool Celsius = true;
+long lastReadTime = 0;
+long currReadTime = 0;
+
+//sets the state of the HVAC system
+//  0 OFF
+//  1 HEAT
+//  2 COOL
+int hvacSystem = 0;
+//tells if system is active
+bool hvacActive = false;
+
+//temperature set points
+int setPoint = 75;
+#define DIFF 2
+
+//returns false if there is a sensor problem
+bool readTemp() {
+  //read sensor
+  Humidity = dht.readHumidity();
+  //reads either C or F
+  if(Celsius)
+  {
+    Temperature = dht.readTemperature();
+  }
+  else
+  {
+    Temperature = dht.readTemperature(true);
+  }
+
+  // Check if any reads failed and exit early (to try again).
+//TODO text number if sensor stops working
+  if (isnan(Humidity) || isnan(Temperature))
+  {
+    Serial.println("Failed to read from DHT sensor!");
+    return false;
+  }
+
+  return true;
+  
+}
+
+void setHVAC()
+{
+  //setting state of HVAC based uppon reading
+  
+  //turns heat on
+  if(hvacSystem == 1 && !(hvacActive) && setPoint - DIFF > Temperature)
+  {
+    digitalWrite(HEAT, HIGH);
+    hvacActive = true;
+  }
+  //turns heat off
+  if(hvacSystem == 1 && hvacActive && setPoint < Temperature)
+  {
+    digitalWrite(HEAT, LOW);
+    hvacActive = false;
+  }
+  //turns AC on
+  if(hvacSystem == 2 && !(hvacActive) && setPoint + DIFF < Temperature)
+  {
+    digitalWrite(COOL, HIGH);
+    hvacActive = true;
+  }
+  //turns AC off
+  if(hvacSystem == 2 && hvacActive && setPoint > Temperature)
+  {
+    digitalWrite(COOL, LOW);
+    hvacActive = false;
+  }
+}
+
+void systemOff()
+{
+  digitalWrite(HEAT, LOW);
+  digitalWrite(COOL, LOW);
+  digitalWrite(FAN, LOW);
+}
+
 void setup() {
   Serial.begin(9600);
+  
+  //setup dht sensor
   dht.begin();
+
+  //used for a timmer
+  lastReadTime = millis();
 }
 
 void loop() {
-  // Wait a few seconds between measurements.
-  delay(1000);
-
-  // Reading temperature or humidity takes about 250 milliseconds!
-  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-  float h = dht.readHumidity();
-  // Read temperature as Celsius (the default)
-  float t = dht.readTemperature();
-  // Read temperature as Fahrenheit (isFahrenheit = true)
-  float f = dht.readTemperature(true);
-
-  // Check if any reads failed and exit early (to try again).
-  if (isnan(h) || isnan(t) || isnan(f)) {
-    Serial.println("Failed to read from DHT sensor!");
-    return;
+  
+  currReadTime = millis();
+  if(currReadTime-lastReadTime >= 1000)
+  {
+    if(readTemp())
+    {
+      setHVAC();
+    }
+    else
+    {
+      systemOff();
+    }
   }
-
-  // Compute heat index in Fahrenheit (the default)
-  float hif = dht.computeHeatIndex(f, h);
-  // Compute heat index in Celsius (isFahreheit = false)
-  float hic = dht.computeHeatIndex(t, h, false);
-
-  Serial.print("Humidity: ");
-  Serial.print(h);
-  Serial.print(" %\t");
-  Serial.print("Temperature: ");
-  Serial.print(t);
-  Serial.print(" *C ");
-  Serial.print(f);
-  Serial.print(" *F\t");
-  Serial.print("Heat index: ");
-  Serial.print(hic);
-  Serial.print(" *C ");
-  Serial.print(hif);
-  Serial.println(" *F");
+  
 }
