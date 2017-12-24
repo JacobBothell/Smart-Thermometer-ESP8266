@@ -11,6 +11,7 @@
 //    Relay == D5, D6, D7, D8 respectfully
 
 #include "DHT.h"
+#include "thermostat.h"
 
 //these are for the realy board that controls HVAC unit
 #define HEAT 14
